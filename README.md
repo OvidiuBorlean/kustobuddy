@@ -1,4 +1,3 @@
-# kustobuddy
 # Kusto Queries Generator
 
 
