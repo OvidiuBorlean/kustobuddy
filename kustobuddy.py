@@ -1,11 +1,16 @@
-#	/subscriptions/aa1792c8-2080-4570-9e12-a13c30464c9f/resourceGroups/acinew/providers/Microsoft.ContainerInstance/containerGroups/acitest
-
+#  KustoBuddy v16022023
+#  For Installation:
+# Install Python 3.10 from Microsoft Store. After this operation please do:
+# pip install tkinter
+# pip install jinja2
 
 import tkinter as tk
 from tkinter import *
 from tkinter import ttk
 from tkinter.messagebox import showinfo
+from tkinter import messagebox
 import jinja2
+import subprocess
 
 root = tk.Tk()
 root.geometry("700x250")
@@ -18,18 +23,39 @@ toTimeEntry = tk.StringVar()
 db = tk.StringVar()
 nsEntry = tk.StringVar()
 checkvar = tk.StringVar()
+openInKusto = IntVar(value=0)
 
 options = [
     "AKS",
     "ACI",
     "ACR",
     "ARO",
-    "AzurePortal",
     "Custom"
 ]
 variable = tk.StringVar(root)
 variable.set(options[0]) # default value
 
+
+def aro_handler():
+    fromt = fromTimeEntry.get()
+    tot = toTimeEntry.get()
+    rawId = resId.get()
+    resURI =  rawId.split("/")
+    subscription = resURI[2]
+    resourceGroup = resURI[4]
+    aroCluster = resURI[8]
+    templateLoader = jinja2.FileSystemLoader(searchpath="./")
+    templateEnv = jinja2.Environment(loader=templateLoader)
+    ARO_TEMPLATE_FILE = "aro.kqt"
+    template = templateEnv.get_template(ARO_TEMPLATE_FILE)
+    aro_outputText = template.render(subscription=subscription, aroCluster=aroCluster, resourceGroupName=resourceGroup, fromTime=fromt, toTime=tot, resUri = rawId)   # this is where to put args to the template renderer
+    file_name = aroCluster + ".kql"
+    new_file = open(file_name,"w")
+    new_file.write(aro_outputText)
+    new_file.close()
+    path = "./" + file_name
+    if openInKusto.get() == 1:
+        subprocess.run(["powershell", path]) 
 
 def aci_handler():
     fromt = fromTimeEntry.get()
@@ -39,7 +65,6 @@ def aci_handler():
     subscription = resURI[2]
     resourceGroup = resURI[4]
     containerGroup = resURI[8]
-    print(resourceGroup)
     templateLoader = jinja2.FileSystemLoader(searchpath="./")
     templateEnv = jinja2.Environment(loader=templateLoader)
     ACI_TEMPLATE_FILE = "aci.kqt"
@@ -49,18 +74,31 @@ def aci_handler():
     new_file = open(file_name,"w")
     new_file.write(aci_outputText)
     new_file.close()
-    
+    path = "./" + file_name
+    if openInKusto.get() == 1:
+        subprocess.run(["powershell", path]) 
 
 def acr_handler():
-    #/subscriptions/bb420665-908d-4789-8bb4-51568e8bede0/resourceGroups/k8s-bi-prod-rg/providers/Microsoft.ContainerRegistry/registries/biprod01acr
     fromt = fromTimeEntry.get()
     tot = toTimeEntry.get()
     rawId = resId.get()
     resURI =  rawId.split("/")
     subscription = resURI[2]
     resourceGroup = resURI[4]
-    registryName = resURI[9]
-    print(registryName)
+    registryName = resURI[8]
+    fqdn = registryName + ".azurecr.io"
+    templateLoader = jinja2.FileSystemLoader(searchpath="./")
+    templateEnv = jinja2.Environment(loader=templateLoader)
+    ACR_TEMPLATE_FILE = "acr.kqt"
+    template = templateEnv.get_template(ACR_TEMPLATE_FILE)
+    acr_outputText = template.render(subscription=subscription, registryName=registryName, resourceGroupName=resourceGroup, fromTime=fromt, toTime=tot, resUri = rawId, fqdn = fqdn)   # this is where to put args to the template renderer
+    file_name = registryName + ".kql"
+    new_file = open(file_name,"w")
+    new_file.write(acr_outputText)
+    new_file.close()
+    path = "./" + file_name
+    if openInKusto.get() == 1:
+        subprocess.run(["powershell", path]) 
 
 def aks_handler():
     fromt = fromTimeEntry.get()
@@ -70,7 +108,6 @@ def aks_handler():
     subscription = resURI[2]
     resourceGroup = resURI[4]
     clusterName = resURI[8]
-    print(clusterName)
     templateLoader = jinja2.FileSystemLoader(searchpath="./")
     templateEnv = jinja2.Environment(loader=templateLoader)
     TEMPLATE_FILE = "aks.kqt"
@@ -80,46 +117,40 @@ def aks_handler():
     new_file = open(file_name,"w")
     new_file.write(outputText)
     new_file.close()
-    if variable.get() == "ARO":
-        print("Ai ales ARO")
-    #int(resId.get())
-    #msg = f'You entered email: {email.get()} and password: {password.get()}'
-    #showinfo(
-    #    title='Information',
-    #    message=msg
-    #)
-
+    path = "./" + file_name
+    if openInKusto.get() == 1:
+        subprocess.run(["powershell", path]) 
+    
 def general_handler():
     if variable.get() == "AKS":
-        print("Ai ales AKS")
+        if "managedClusters" not in resId.get():
+            messagebox.showinfo('information', 'No valid Azure Kubernetes Service found in provided Id.')
         aks_handler()
     elif variable.get() == "ACI":
-        print("Ai ales ACI")
+        if "Microsoft.ContainerInstance" not in resId.get():
+            messagebox.showinfo('information', 'No valid Azure Container Instance found in provided Id.')
         aci_handler()
     elif variable.get() == "ACR":
-        print("Ai ales ACR")
+        if "Microsoft.ContainerRegistry" not in resId.get():
+            messagebox.showinfo('information', 'No valid Azure Container Registry found in provided Id.')
         acr_handler()
     elif variable.get() == "ARO":
-        print( "Ai ales ARO")
-    elif variable.get() == "AzurePortal":
-        print( "Ai ales AzurePortal")
+        if "RedHat" not in resId.get():
+            messagebox.showinfo('information', 'No valid Azure RedHat OpenShift found in provided Id.')
+        aro_handler()
     elif variable.get() == "Custom":
-        print( "Ai ales Custom")
+        subprocess.run(["notepad", "custom.kqt" ]) 
 
 if __name__ == "__main__":
-
     main = ttk.Frame(root)
     main.pack(padx=10, pady=10, fill='x', expand=True)
     second = ttk.Frame(root)
     second.pack(padx=15, pady=15, fill='x', expand=True)
-    #title = ttk.Label(main, text="KustoBuddy v0.20230227",  anchor="e", font=("Helvetica", 10))
-    #title.pack(ipadx=10, ipady=10)
     w = OptionMenu(main, variable, *options)
     w.pack()
 
-
     # Resource Id
-    resource = ttk.Label(main, text="AKS Resource Id:")
+    resource = ttk.Label(main, text="Resource Id:")
     resource.pack(fill='x', expand=True)
     resource_entry = ttk.Entry(main, textvariable=resId)
     resource_entry.pack(fill='x', expand=True, pady=15)
@@ -129,41 +160,25 @@ if __name__ == "__main__":
     fromTime = ttk.Label(main, text="FromTime")
     fromTime.pack(side=tk.LEFT, fill=tk.X, padx=5)
     fromtime_entry = ttk.Entry(main, textvariable=fromTimeEntry)
-    #fromtime_entry.pack(fill='x', expand=True)
     fromtime_entry.pack(side=tk.LEFT, fill=tk.X, padx=5)
-
     # to Time
     toTime = ttk.Label(main, text="ToTime")
     toTime.pack(side=tk.RIGHT, fill=tk.X, padx=5)
     toTime_entry = ttk.Entry(main, textvariable=toTimeEntry)
     #fromtime_entry.pack(fill='x', expand=True)
     toTime_entry.pack(side=tk.RIGHT, fill=tk.X, padx=5)
-    
-    
     # namespace
-    #namespace = ttk.Label(main, text="Namespace")
-    #namespace.pack(fill='x', expand=True)
-    #namespace.pack(side=tk.BOTTOM, fill=tk.X, padx=5)
     namespace_entry = ttk.Entry(main, textvariable=nsEntry)
-    #namespace_entry.pack(fill='x', expand=True)
     namespace_entry.insert(0, "CCP Namespace")
     namespace_entry.pack(side=tk.TOP, fill=tk.X, padx=25)
-    #namespace = ttk.Label(main, text="Namespace")
-    #namespace.pack(side=tk.RIGHT, padx=15)
-    
-    # login button
-
+   
     login_button = ttk.Button(second, text="Generate", command=general_handler)
-    #login_button.pack(fill='x', expand=True, pady=20)
     login_button.pack(side=tk.LEFT, fill=tk.X, padx=5)
-
     quit_button = ttk.Button(second, text="Quit", command=general_handler)
     quit_button.pack(side=tk.LEFT, fill=tk.X, padx=5)
 
-    #title = ttk.Label(second, text="KustoBuddy v0.20230227",  anchor="e", font=("Helvetica", 10))
-    #title.pack(ipadx=3, ipady=3, side=tk.TOP)
-    
-    C1 = Checkbutton(second, text = "Open in Kusto Explorer", variable = checkvar, onvalue = 1, offvalue = 0, height=2, width = 20).pack()
-    title = ttk.Label(second, text="KustoBuddy v0.20230227", font=("Helvetica", 8))
+    C1 = Checkbutton(second, text = "Open in Kusto Explorer", variable = openInKusto, onvalue = 1, offvalue = 0, height=2, width = 20).pack()
+    title = ttk.Label(second, text="KustoBuddy v0.16032023", font=("Helvetica", 8))
     title.pack(ipadx=1, ipady=1, side=tk.RIGHT)
+    
     root.mainloop()
